@@ -1,0 +1,40 @@
+Pattoneq.joe=function(theta,data){
+  u=data[,1]
+  v=data[,2]
+  t=dim(data)[1]
+  tau = matrix(,t,1)
+  psi=rep(1,t)
+  tt = cor(data,method="kendall")
+  tau[1]=tt[1,2]
+  if(tau[1]>0.99){
+    tau[1]=0.98
+  }else{
+    tau[1]= tt[1,2]
+  }
+  
+  for (i in 2:t){
+
+    if(i<=10){
+      psi[i]= theta[1] +theta[2]*psi[i-1]+theta[3]*mean(abs(u[1:(i-1)]-v[1:(i-1)]))
+    }
+    else{
+      
+      psi[i]= theta[1] +theta[2]*psi[i-1]+theta[3]*mean(abs(u[(i-10):(i-1)]-v[(i-10):(i-1)]))
+    }
+    
+    
+    tau[i]=1/(1+exp(-psi[i]))#to avoid reach the bound 0 and 1
+    if(tau[i]>0.98|is.nan(tau[i])==1){
+      tau[i]=0.98
+    }else if(tau[i]==0){
+      tau[i]=0.001
+    }else if(tau[i]<(-0.98)){
+      tau[i]=-0.98
+    }else{
+      tau[i]=tau[i]
+    }
+    
+  }
+  psi=apply(tau,1,BiCopTau2Par,family=6)
+  return(psi)
+}
