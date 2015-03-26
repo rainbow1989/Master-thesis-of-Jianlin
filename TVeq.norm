@@ -1,0 +1,22 @@
+
+
+TVeq=function(theta,data){
+  u=data[,1]
+  v=data[,2]
+  t=dim(data)[1]
+  tau = rep(1,t)
+  psi=rep(1,t)
+  tt = cor(data,method="kendall")
+  psi[1]= tt[1,2]
+  for (i in 2:t){
+    ap=0
+    if(i<=10){
+      psi[i]= (1-exp(-(theta[1] + theta[2]*psi[i-1]+theta[3]*mean(qnorm(u[1:i-1])*qnorm(v[1:i-1])))))*(1+exp(-(theta[1] +theta[2]*psi[i-1]+theta[3]*mean(qnorm(u[1:i-1])*qnorm(v[1:i-1])))))^(-1)
+    }
+    else{
+      
+      psi[i]= (1-exp(-(theta[1] + theta[2]*psi[i-1]+theta[3]*mean(qnorm(u[(i-10):i-1])*qnorm(v[(i-10):i-1])))))*(1+exp(-(theta[1] +theta[2]*psi[i-1]+theta[3]*mean(qnorm(u[(i-10):i-1])*qnorm(v[(i-10):i-1])))))^(-1)
+    }
+  }
+  return(psi)
+}
