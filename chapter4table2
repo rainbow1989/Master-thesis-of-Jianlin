@@ -1,0 +1,17 @@
+library(xts)
+library(foreign)
+library(xtable)
+bonds.data.raw=read.dta("E:/HU/fourth_semester/master_thesis/data/datastream/2015/bonds_paper.dta")
+bonds.data=data.frame(bonds.data.raw[-c(1,2),-1])
+colnames(bonds.data)=c("GM","IT","FR","SP","GR","NL","IR","PT","EMU")
+bonds.data.all=data.frame(bonds.data)
+bonds.data.all=apply(bonds.data.all,2,as.numeric)
+bonds.data.all.log=log(bonds.data.all)
+bonds.data.all.logr=apply(bonds.data.all.log,2,diff)
+date=bonds.data.raw[-c(1,2),1]
+date=as.Date(date,"%m/%d/%Y")
+bonds.data.all.ts=100*xts(bonds.data.all.logr,order.by=date[-1])
+
+############################correlation##########################
+correlation.all=cor(bonds.data.all.ts,method="kendall")
+print(xtable(correlation.all,digit=4))
