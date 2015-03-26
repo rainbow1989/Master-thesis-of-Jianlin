@@ -1,0 +1,611 @@
+library(xts)
+library(foreign)
+library(FinTS)
+library(fGarch)
+library(rugarch)
+library(HAC)
+library(reshape)
+library(ggplot2)
+library(copula)
+library(rmgarch)
+library(R.matlab)
+library(nloptr)
+library(numDeriv)
+bonds.data.raw=read.dta("E:/HU/fourth_semester/master_thesis/data/datastream/2015/bonds.dta")
+bonds.data=data.frame(bonds.data.raw[-c(1,2),-1])
+colnames(bonds.data)=c("GM","IT","FR","SP","GR","NL","IR","PT","EMU")
+bonds.data.all=data.frame(bonds.data)
+bonds.data.all=apply(bonds.data.all,2,as.numeric)
+bonds.data.all.log=log(bonds.data.all)
+bonds.data.all.logr=apply(bonds.data.all.log,2,diff)
+date=bonds.data.raw[-c(1,2),1]
+date=as.Date(date,"%m/%d/%Y")
+date=date[-1]
+bonds.data.all.ts=100*xts(bonds.data.all.logr,order.by=date)
+##############get copula data function
+
+get.copula.data=function(data){
+  
+  copula.data=matrix(,nrow(data),ncol(data))
+  mean.data=matrix(,nrow(data),ncol(data))
+  sigma.data=matrix(,nrow(data),ncol(data))
+  shape.data=matrix(,1,ncol(data))
+  skew.data=matrix(,1,ncol(data))
+  spec.GM=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                     distribution.model="sstd")
+  spec.IT=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,0),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                     distribution.model="sstd")
+  spec.FR=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                     distribution.model="sstd")
+  spec.SP=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                     distribution.model="sstd")
+  spec.GR=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(6,0),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(1,4),include.mean=F),
+                     distribution.model="sstd")
+  spec.NL=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                     distribution.model="sstd")
+  spec.IR=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(4,0),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(1,3),include.mean=F),
+                     distribution.model="sstd")
+  spec.PT=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(4,0),submodel="TGARCH",
+                                         external.regressors=NULL)
+                     ,mean.model=list(armaOrder=c(2,0),include.mean=F),
+                     distribution.model="sstd")##??
+  spec.EMU=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                          external.regressors=NULL)
+                      ,mean.model=list(armaOrder=c(1,0),include.mean=F),
+                      distribution.model="sstd")
+  
+  for(i in 1:ncol(data)){
+    if (i==1){
+      all.spec=spec.GM
+    }else if(i==2){
+      all.spec=spec.IT
+    }else if(i==3){
+      all.spec=spec.FR
+    }else if(i==4){
+      all.spec=spec.SP
+    }else if(i==5){
+      all.spec=spec.GR
+    }else if(i==6){
+      all.spec=spec.NL
+    }else if(i==7){
+      all.spec=spec.IR
+    }else if(i==8){
+      all.spec=spec.PT
+    }else{
+      all.spec=spec.EMU
+    }
+    all.garch=ugarchfit(all.spec,data[,i],solver="hybrid")
+    all.residual=residuals(all.garch)
+    all.shape=coef(all.garch)["shape"]
+    all.skew=coef(all.garch)["skew"]
+    all.mean=fitted(all.garch)
+    all.sigma=sigma(all.garch)
+    all.cdf=pit(all.garch)
+    copula.data[,i]=all.cdf
+    mean.data[,i]=all.mean
+    sigma.data[,i]=all.sigma
+    shape.data[,i]=all.shape
+    skew.data[,i]=all.skew
+    
+  }
+  return(list(copula.data,mean.data,sigma.data,shape.data,skew.data))###########
+}
+
+
+return.list=get.copula.data(bonds.data.all.ts)
+copula.data.list=return.list[1]
+copula.data=matrix(unlist(copula.data.list),ncol=9)
+
+mean.data.list=return.list[2]
+mean.data=matrix(unlist(mean.data.list),ncol=9)
+
+sigma.data.list=return.list[3]
+sigma.data=matrix(unlist(sigma.data.list),ncol=9)
+
+shape.data.list=return.list[4]
+shape.data=matrix(unlist(shape.data.list),ncol=9)
+
+skew.data.list=return.list[5]
+skew.data=matrix(unlist(skew.data.list),ncol=9)
+#########EMU data after filtering
+copula.data.EMU=copula.data[,9]
+mean.data.EMU=mean.data[,9]
+sigma.data.EMU=sigma.data[,9]
+shape.data.EMU=shape.data[9]
+skew.data.EMU=skew.data[9]
+###############estimeated dependence parameter for GM##########
+source("TVeq.t.r")
+solution.t.GM=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_t.csv")
+theta.copula.GM=TVeq.t(solution.t.GM[,1],copula.data[,c(1,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+    for (j in 1:nrow(mean.data)){
+      ###############covar part###################
+      uVal=function(x){
+        t.cop=tCopula(theta.copula.GM[j])
+        f=pCopula(c(x,alpha),t.cop)-alpha*beta
+        return(f)
+      }
+      u=uniroot(uVal,lower=0,upper=1)$root
+      covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+    }
+  
+  return(covar.all)
+}
+
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,1],sd=sigma.data[,1],nu=shape.data[1],xi=skew.data[1])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="Germany")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(-0.4,-0.6), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(0.4,0.6), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="24 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_GM.pdf", paper="a4r",width = 28, height = 18);
+
+
+###############estimeated dependence parameter for IT##########
+source("Pattoneq_sgumbel.R")
+solution.sgumbel.IT=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_sgumbel.csv")
+theta.copula.IT=Pattoneq.sgumbel(solution.sgumbel.IT[,2],copula.data[,c(2,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+  for (j in 1:nrow(mean.data)){
+    ###############covar part###################
+    uVal=function(x){
+      
+      f=BiCopCDF((1-x),(1-alpha),family=14,theta.copula.IT[j])+alpha+x-1-alpha*beta
+      return(f)
+    }
+    u=uniroot(uVal,lower=0,upper=1)$root
+    covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+  }
+  
+  return(covar.all)
+}
+
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,2],sd=sigma.data[,2],nu=shape.data[2],xi=skew.data[2])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="Italy")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(min(delta.CoVaR),max(delta.CoVaR)), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(min(delta.CoVaR),max(delta.CoVaR)), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="12 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_IT.pdf", paper="a4r",width = 28, height = 18);
+
+
+
+###############estimeated dependence parameter for FR##########
+source("Pattoneq_sgumbel.R")
+solution.sgumbel.FR=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_sgumbel.csv")
+theta.copula.FR=Pattoneq.sgumbel(solution.sgumbel.FR[,3],copula.data[,c(3,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+  for (j in 1:nrow(mean.data)){
+    ###############covar part###################
+    uVal=function(x){
+      
+      f=BiCopCDF((1-x),(1-alpha),family=14,theta.copula.FR[j])+alpha+x-1-alpha*beta
+      return(f)
+    }
+    u=uniroot(uVal,lower=0,upper=1)$root
+    covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+  }
+  
+  return(covar.all)
+}
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,3],sd=sigma.data[,3],nu=shape.data[3],xi=skew.data[3])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="France")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(min(delta.CoVaR),max(delta.CoVaR)), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(min(delta.CoVaR),max(delta.CoVaR)), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="24 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_FR.pdf", paper="a4r",width = 28, height = 18);
+
+
+
+
+
+###############estimeated dependence parameter for SP##########
+source("Pattoneq_sgumbel.R")
+solution.sgumbel.SP=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_sgumbel.csv")
+theta.copula.SP=Pattoneq.sgumbel(solution.sgumbel.SP[,4],copula.data[,c(4,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+  for (j in 1:nrow(mean.data)){
+    ###############covar part###################
+    uVal=function(x){
+      
+      f=BiCopCDF((1-x),(1-alpha),family=14,theta.copula.SP[j])+alpha+x-1-alpha*beta
+      return(f)
+    }
+    u=uniroot(uVal,lower=0,upper=1)$root
+    covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+  }
+  
+  return(covar.all)
+}
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,4],sd=sigma.data[,4],nu=shape.data[4],xi=skew.data[4])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="Spain")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(min(delta.CoVaR),max(delta.CoVaR)), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(min(delta.CoVaR),max(delta.CoVaR)), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="24 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_SP.pdf", paper="a4r",width = 28, height = 18);
+
+
+
+
+
+###############estimeated dependence parameter for GR##########
+source("Pattoneq_sgumbel.R")
+solution.sgumbel.GR=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_sgumbel.csv")
+theta.copula.GR=Pattoneq.sgumbel(solution.sgumbel.GR[,5],copula.data[,c(5,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+  for (j in 1:nrow(mean.data)){
+    ###############covar part###################
+    uVal=function(x){
+      
+      f=BiCopCDF((1-x),(1-alpha),family=14,theta.copula.GR[j])+alpha+x-1-alpha*beta
+      return(f)
+    }
+    u=uniroot(uVal,lower=0,upper=1)$root
+    covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+  }
+  
+  return(covar.all)
+}
+
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,5],sd=sigma.data[,5],nu=shape.data[5],xi=skew.data[5])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="Greece")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(min(delta.CoVaR),max(delta.CoVaR)), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(min(delta.CoVaR),max(delta.CoVaR)), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="24 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_GR.pdf", paper="a4r",width = 28, height = 18);
+
+
+###############estimeated dependence parameter for NL##########
+source("Pattoneq_sgumbel.R")
+solution.sgumbel.NL=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_sgumbel.csv")
+theta.copula.NL=Pattoneq.sgumbel(solution.sgumbel.NL[,6],copula.data[,c(6,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+  for (j in 1:nrow(mean.data)){
+    ###############covar part###################
+    uVal=function(x){
+      
+      f=BiCopCDF((1-x),(1-alpha),family=14,theta.copula.NL[j])+alpha+x-1-alpha*beta
+      return(f)
+    }
+    u=uniroot(uVal,lower=0,upper=1)$root
+    covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+  }
+  
+  return(covar.all)
+}
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,6],sd=sigma.data[,6],nu=shape.data[6],xi=skew.data[6])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="Netherland")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(min(delta.CoVaR),max(delta.CoVaR)), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(min(delta.CoVaR),max(delta.CoVaR)), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="24 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_NL.pdf", paper="a4r",width = 28, height = 18);
+
+
+
+
+
+###############estimeated dependence parameter for IR##########
+source("Pattoneq_gumbel.R")
+solution.gumbel.IR=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_gumbel.csv")
+theta.copula.IR=Pattoneq.gumbel(solution.gumbel.IR[,7],copula.data[,c(7,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+  for (j in 1:nrow(mean.data)){
+    ###############covar part###################
+    uVal=function(x){
+      gumbel.cop=gumbelCopula(theta.copula.IR[j])
+      f=pCopula(c(x,alpha),gumbel.cop)-alpha*beta
+      return(f)
+    }
+    u=uniroot(uVal,lower=0,upper=1)$root
+    covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+  }
+  
+  return(covar.all)
+}
+
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,7],sd=sigma.data[,7],nu=shape.data[7],xi=skew.data[7])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="Ireland")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(min(delta.CoVaR),max(delta.CoVaR)), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(min(delta.CoVaR),max(delta.CoVaR)), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="24 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_IR.pdf", paper="a4r",width = 28, height = 18);
+
+
+
+
+###############estimeated dependence parameter for PT##########
+source("Pattoneq_sgumbel.R")
+solution.sgumbel.PT=read.csv("E:/HU/fourth_semester/master_thesis/Rcode/results/solution_TV_sgumbel.csv")
+theta.copula.PT=Pattoneq.sgumbel(solution.sgumbel.PT[,8],copula.data[,c(8,9)])
+#############################covar###############
+
+CoVaR=function(alpha,beta){
+  #theta.copula=matrix(,1,ncol(copula.data)-1)
+  covar.all=matrix(,nrow(copula.data),1)
+  
+  for (j in 1:nrow(mean.data)){
+    ###############covar part###################
+    uVal=function(x){
+      
+      f=BiCopCDF((1-x),(1-alpha),family=14,theta.copula.PT[j])+alpha+x-1-alpha*beta
+      return(f)
+    }
+    u=uniroot(uVal,lower=0,upper=1)$root
+    covar.all[j]=qsstd(u,mean=mean.data.EMU[j],sd=sigma.data.EMU[j],nu=shape.data.EMU,xi=skew.data.EMU)
+  }
+  
+  return(covar.all)
+}
+CoVaR.object=CoVaR(0.01,0.01)
+
+CoVaR.bench=CoVaR(0.5,0.01)
+
+delta.CoVaR=(CoVaR.object-CoVaR.bench)/abs(CoVaR.bench)
+
+VaR=qsstd(0.01,mean=mean.data[,8],sd=sigma.data[,8],nu=shape.data[8],xi=skew.data[8])
+
+##############plot##################################
+par(mar=c(5, 6, 4, 6) + 0.1)
+plot(date,VaR, pch=16, axes=F, ylim=c(min(VaR),max(VaR)), xlab="", ylab="", 
+     type="l",col="blue", main="Portgual")
+axis(2, ylim=c(min(VaR),max(VaR)),col="blue",las=1,col.axis="blue")
+mtext("VaR",side=2,line=2.5,col="Blue")
+box()
+
+## Allow a second plot on the same graph
+par(new=TRUE)
+plot(date, delta.CoVaR, pch=15,  xlab="", ylab="", ylim=c(min(delta.CoVaR),max(delta.CoVaR)), 
+     axes=FALSE, type="l", col="red")
+## a little farther out (line=4) to make room for labels
+mtext(expression(paste(Delta,"CoVaR")),side=4,col="red",line=4) 
+axis(4, ylim=c(min(delta.CoVaR),max(delta.CoVaR)), col="red",col.axis="red",las=1)
+## Draw the time axis
+axis.Date(1,at=seq(min(date),max(date),by="24 mon"), format="%Y")
+mtext("Time ",side=1,col="black",line=2.5)  
+
+## Add Legend
+legend("bottomleft",legend=c("VaR",expression(paste(Delta,"CoVaR"))),
+       text.col=c("blue","red"),pch=c("-","-"),bty = "n")
+
+abline(v=as.Date("11/06/2009","%m/%d/%Y"),lwd=2)
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/delta_covar_var_PT.pdf", paper="a4r",width = 28, height = 18)
+
+
