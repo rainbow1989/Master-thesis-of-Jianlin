@@ -1,0 +1,32 @@
+
+####################patton equation for gumbel#################################
+Pattoneq.gumbel=function(theta,data){
+  u=data[,1]
+  v=data[,2]
+  t=dim(data)[1]
+  tau = rep(1,t)
+  psi=rep(1,t)
+  
+  tt = cor(data,method="kendall")
+  tau[1]= tt[1,2]
+  
+  for (i in 2:t){
+
+    if(i<=10){
+      psi[i]= theta[1] +theta[2]*psi[i-1]+theta[3]*mean(abs(u[1:i-1]-v[1:i-1]))
+    }
+    else{
+      
+      psi[i]= theta[1] +theta[2]*psi[i-1]+theta[3]*mean(abs(u[(i-10):i-1]-v[(i-10):i-1]))
+    }
+    
+    
+    #psi[j]= theta[1] + theta[2]*abs(u[j-1]-v[j-1])+ theta[3]*psi[j-1]
+    
+    tau[i]=0.0001+0.999/(1+exp(-psi[i]))#to avoid reach the bound 0 
+    
+  }
+  psi=1/(1-tau)
+  
+  return(psi)
+}
