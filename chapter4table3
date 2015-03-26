@@ -1,0 +1,70 @@
+library(xts)
+library(foreign)
+library(FinTS)
+library(fGarch)
+library(rugarch)
+library(HAC)
+library(reshape)
+library(ggplot2)
+library(copula)
+library(rmgarch)
+library(R.matlab)
+library(nloptr)
+library(numDeriv)
+bonds.data.raw=read.dta("E:/HU/fourth_semester/master_thesis/data/datastream/2015/bonds.dta")
+bonds.data=data.frame(bonds.data.raw[-c(1,2),-1])
+colnames(bonds.data)=c("GM","IT","FR","SP","GR","NL","IR","PT","EMU")
+bonds.data.all=data.frame(bonds.data)
+bonds.data.all=apply(bonds.data.all,2,as.numeric)
+bonds.data.all.log=log(bonds.data.all)
+bonds.data.all.logr=apply(bonds.data.all.log,2,diff)
+date=bonds.data.raw[-c(1,2),1]
+date=as.Date(date,"%m/%d/%Y")
+bonds.data.all.ts=100*xts(bonds.data.all.logr,order.by=date[-1])
+##############ARMA_GARCH specification##############################
+spec.GM=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                   distribution.model="sstd")
+spec.IT=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,0),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                   distribution.model="sstd")
+spec.FR=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                   distribution.model="sstd")
+spec.SP=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                   distribution.model="sstd")
+spec.GR=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(6,0),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(1,4),include.mean=F),
+                   distribution.model="sstd")
+spec.NL=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(1,1),include.mean=F),
+                   distribution.model="sstd")
+spec.IR=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(4,0),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(1,3),include.mean=F),
+                   distribution.model="sstd")
+spec.PT=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(4,0),submodel="TGARCH",
+                                       external.regressors=NULL)
+                   ,mean.model=list(armaOrder=c(2,0),include.mean=F),
+                   distribution.model="sstd")##??
+spec.EMU=ugarchspec(variance.model=list(model="fGARCH",garchOrder=c(1,1),submodel="TGARCH",
+                                        external.regressors=NULL)
+                    ,mean.model=list(armaOrder=c(1,0),include.mean=F),
+                    distribution.model="sstd")
+###############################estimation###################
+garch.GM=ugarchfit(spec.GM,data[,1],solver="hybrid")
+garch.IT=ugarchfit(spec.IT,data[,2],solver="hybrid")
+garch.FR=ugarchfit(spec.FR,data[,3],solver="hybrid")
+garch.SP=ugarchfit(spec.SP,data[,4],solver="hybrid")
+garch.GR=ugarchfit(spec.GR,data[,5],solver="hybrid")
+garch.NL=ugarchfit(spec.NL,data[,6],solver="hybrid")
+garch.IR=ugarchfit(spec.IR,data[,7],solver="hybrid")
+garch.PT=ugarchfit(spec.PT,data[,8],solver="hybrid")
+garch.EMU=ugarchfit(spec.EMU,data[,9],solver="hybrid")
