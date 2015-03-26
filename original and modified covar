@@ -1,0 +1,111 @@
+library(copula)
+library(mvtnorm)
+library(ggplot2)
+library(reshape)
+library(rootSolve)
+##simulate the bivariate iid bivariate standard normal distribution with sigm
+mu=c(0,0)
+sigma=matrix(c(4,1,1,1),nrow=2)
+##set confidence level
+alpha=0.99
+beta=0.99
+#semulate the data
+simudata=rmvnorm(n=2000,mu,sigma)
+#function to caculate the orignial CoVaR for bivariate gaussian distribution
+covar1=function(mu,sigma,alpha,beta){
+  mux=mu[1]
+  muy=mu[2]
+  sigmax=sqrt(sigma[1,1])
+  sigmay=sqrt(sigma[2,2])
+  rho=sigma[1,2]/(sigmax*sigmay)
+  covar1=muy+sigmay*(rho*qnorm(alpha,0,1)+qnorm(beta,0,1)*sqrt(1-rho^2))
+  return(covar1)
+  }
+covar1(mu,sigma,alpha,beta)
+##vovar1 is the function of rho
+vrho=seq(-1,1,length.out=1000)
+mux=mu[1]
+muy=mu[2]
+sigmax=sqrt(sigma[1,1])
+sigmay=sqrt(sigma[2,2])
+covar1=muy+sigmay*(vrho*qnorm(alpha,0,1)+qnorm(beta,0,1)*sqrt(1-vrho^2))
+alpha0.9=0.9
+alpha0.95=0.95
+beta0.9=0.9
+beta0.95=0.95
+covar2=muy+sigmay*(vrho*qnorm(alpha0.9,0,1)+qnorm(beta0.9,0,1)*sqrt(1-vrho^2))
+covar3=muy+sigmay*(vrho*qnorm(alpha0.95,0,1)+qnorm(beta0.95,0,1)*sqrt(1-vrho^2))
+##############################plot
+par(mar=c(5, 6, 4, 6))
+plot(vrho,covar1,pch=2,lty=1, lwd=3,col="white" , axes=F, ylim=c(min(covar1),max(covar1)), xlab="", ylab="", 
+     main=expression(paste("original CoVaR as funtion of ",theta)))
+mtext(expression(theta),side=1,line=2.5)
+mtext("CoVaR",side=2,line=2.5)
+axis(1)
+axis(2, ylim=c(min(covar1),max(covar1)),las=1)
+box()
+lines(vrho,covar1,pch=2,lty=1, lwd=3,col=2)
+lines(vrho,covar2,pch=3,lty=1, lwd=3,col=3)
+lines(vrho,covar3,pch=4,lty=1, lwd=3,col=4)
+legend(x=0.3*max(vrho),y=-0.1*max(covar1),c(expression(paste(alpha,"=",beta,"=0.01")),expression(paste(alpha,"=",beta,"=0.05")),expression(paste(alpha,"=",beta,"=0.1")))
+       , lty=c(1,1,1),col=c(2,3,4), lwd=3,cex=1
+       ,bty="n")
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/original_CoVaR.pdf", paper="a4r",width = 28, height = 18);
+
+
+
+
+
+###modified covar part
+
+covar_rho=function(rho,alpha,beta){
+  #function to calculate the conditional CDF
+  CDFcondition=function(v){  ##v should be [0,1]
+    norm.cop=normalCopula(rho)
+    copulavalue=pCopula(c(v, alpha), norm.cop)
+    CDFcondition=copulavalue/alpha
+    return(CDFcondition)
+  }
+  ##inverse conditional CDF
+  inverse = function (f) {
+    function (y) uniroot((function (x) f(x) - y), lower = -2^100, upper = 2^100,tol = 1e-6)[1]
+  }
+  CDF_inverse = inverse(CDFcondition)
+  CDF_inversevalue=CDF_inverse(beta)$root
+  #calculate the covar of standard normal distribution with gaussian copula  
+  covar=-qnorm(CDF_inversevalue,0,1)
+  return(covar)
+}
+
+rho=matrix(seq(-1,1,length.out=100),ncol=1)
+covar1=apply(rho,1,covar_rho,alpha=0.01,beta=0.01)
+covar2=apply(rho,1,covar_rho,alpha=0.05,beta=0.05)
+covar3=apply(rho,1,covar_rho,alpha=0.1,beta=0.1)
+############plot####################################
+par(mar=c(5, 6, 4, 6))
+plot(rho,covar1,pch=2,lty=1, lwd=3,col="white" , axes=F, ylim=c(min(covar1),max(covar1)), xlab="", ylab="", 
+     main=expression(paste("modified CoVaR as funtion of ",theta)))
+mtext(expression(theta),side=1,line=2.5)
+mtext("CoVaR",side=2,line=2.5)
+axis(1)
+axis(2, ylim=c(min(covar1),max(covar1)),las=1)
+box()
+lines(rho,covar1,pch=2,lty=1, lwd=3,col=2)
+lines(rho,covar2,pch=3,lty=1, lwd=3,col=3)
+lines(rho,covar3,pch=4,lty=1, lwd=3,col=4)
+legend(x=0.3*max(rho),y=0.1*max(covar1),c(expression(paste(alpha,"=",beta,"=0.01")),expression(paste(alpha,"=",beta,"=0.05")),expression(paste(alpha,"=",beta,"=0.1")))
+       , lty=c(1,1,1),col=c(2,3,4), lwd=3,cex=1
+       ,bty="n")
+dev.print(pdf,file="E:/HU/fourth_semester/master_thesis/figures/modified_CoVaR.pdf", paper="a4r",width = 28, height = 18);
+
+
+
+
+
+
+
+
+
+
+
+
