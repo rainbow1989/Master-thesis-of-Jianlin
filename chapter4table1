@@ -1,0 +1,101 @@
+library(xts)
+library(foreign)
+library(FinTS)
+library(fGarch)
+library(copula)
+library(rugarch)
+library(HAC)
+library(reshape)
+library(ggplot2)
+library(copula)
+library(rmgarch)
+library(R.matlab)
+library(fBasics)
+library(xtable)
+library(pastecs)
+bonds.data.raw=read.dta("E:/HU/fourth_semester/master_thesis/data/datastream/2015/bonds.dta")
+bonds.data=data.frame(bonds.data.raw[-c(1,2),-1])
+colnames(bonds.data)=c("GM","IT","FR","SP","GR","NL","IR","PT","EMU")
+bonds.data=apply(bonds.data,2,as.numeric)
+bonds.data.log=log(bonds.data)
+bonds.data.logr=apply(bonds.data.log,2,diff)
+####estimated first AC of returns
+getacf=function(x){
+  acf=numeric(ncol(x))
+  for (i in 1:ncol(x)){
+    acf[i]=acf(x[,i],na.action=na.pass,plot=F,lag.max=20)[1]$acf
+  }
+  return(acf)
+}
+acf=getacf(bonds.data.logr)
+
+##estimated first Ac of squared returns
+logsr=bonds.data.logr^2
+acfs=getacf(logsr)
+#estimated first Ac of for abusolute return
+logabsr=abs(bonds.data.logr)
+cfabs=getacf(logabsr)
+
+#skewness and kurtosis
+skewness=colSkewness(bonds.data.logr)
+kurtosis=colKurtosis(bonds.data.logr)
+#JB test
+getjb=function(x){
+  jb=numeric(ncol(x))
+  for (i in 1:ncol(x)){
+    jb[i]=jbTest(x[,i])@test$statistic[2]
+  }
+  return(jb)
+}
+jb=getjb(bonds.data.logr)
+#ADF test
+getadf=function(x){
+  adf=numeric(ncol(x))
+  for (i in 1:ncol(x)){
+    adf[i]=adf.test(x[,i])$statistic
+  }
+  return(adf)
+}
+adf=getadf(bonds.data.logr)
+
+#kpss test
+getkpss=function(x){
+  kpss=numeric(ncol(x))
+  for (i in 1:ncol(x)){
+    kpss[i]=kpss.test(x[,i])$statistic
+  }
+  return(kpss)
+}
+kpss=getkpss(bonds.data.logr)
+
+#autocorrelation test
+getautocor=function(x){
+  autocor=numeric(ncol(x))
+  for (i in 1:ncol(x)){
+    autocor[i]=round(AutocorTest(x[,i])$statistic,4)
+  }
+  return(autocor)
+}
+autocor=getautocor(bonds.data.logr)
+#Arch test
+getarch=function(x){
+  arch=numeric(ncol(x))
+  for (i in 1:ncol(x)){
+    arch[i]=ArchTest(x[,i])$statistic
+  }
+  return(arch)
+}
+arch=getarch(bonds.data.logr)
+
+#statistics summary of CDS returns#####
+
+summary1=stat.desc(bonds.data.logr)
+summary1=t(as.matrix(summary1[c("min","max","median","mean","std.dev"),]))
+summary2=cbind(acf,acfs,cfabs,kurtosis,skewness,jb)
+summary3=cbind(adf,kpss,autocor,arch)
+rownames(summary3)=c("GM","IT","FR","SP","GR","NL","IR","PT","EMU")
+summary=t(cbind(summary1,summary2,summary3))
+##create the latex code for the summary table
+print(xtable(summary,digits=4),floating=F)
+
+
